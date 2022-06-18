@@ -9,7 +9,16 @@
 use crate::sip::SipHash;
 
 /// Graph structure
-/// Fields:
+/// 
+/// The graph for cuckoo cycle has N edges and N+N nodes.
+/// It is bipartite, meaning the nodes can be divided into
+/// two disjoint sets, U and V, where nodes in U only have
+/// edges to nodes in V and vice versa.
+/// 
+/// The edges of the graph are generated pseudorandomly using
+/// the siphash-2-4 hash function.
+/// 
+/// Struct Fields:
 ///     edges - The edges of the graph which
 ///             connect nodes together. Each edge
 ///             consists of the nodes the it incidents
@@ -20,13 +29,12 @@ pub struct Graph {
 }
 
 impl Graph {
-    /// Construct a new graph with the given hash function key and edge count.
-    /// The graph will be a bipartite graph with edge_count * 2 nodes.
+    /// Construct a new graph
     pub fn new(key: [u64; 4], n: u64) -> Self {
         let mut edges = Vec::with_capacity(n as usize);
         let hasher = SipHash::new(key);
 
-        // Construct graph G_K
+        // Construct the edges of the graph G_K
         let mut i: u64 = 0;
         while i < n{
             let u: u64 = hasher.hash(2*i)   % n;
@@ -68,7 +76,9 @@ impl Graph {
     }
 
     /// Solve for a cycle with the given number of edges.
-    pub fn solve(&self, cycle_len: usize) -> Option<Vec<u64>> {
+    /// The result of this function is either a vector of edge indicies
+    /// or nothing in the case that no cycle exists on the graph.
+    pub fn solve(&self, cycle_len: usize) -> Option<Vec<usize>> {
         None
     }
 
