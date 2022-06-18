@@ -36,15 +36,8 @@ impl Graph {
             i += 1;
         }
 
-        // From G_K, construct G'_K
-        // Not sure if this section is implemented correctly.
-        // How does a right shift in the edge's nodes identify
-        // nodes that only differ in the last bit?
-        // Further more, how does modifying the edge set preserve
-        // the edges in graph G_K?
-        //
-        // Identifying differing last bits can be done with an XOR
-        // rater than a right shift.
+        // Not sure if this series of right shifts is necessary apart from
+        // saving memory...
         let mut i = 0;
         while i < edges.len() {
             edges[i] = (edges[i].0 >> 1, edges[i].1 >> 1);
@@ -55,7 +48,32 @@ impl Graph {
         Self { edges }
     }
 
+    /// Return the number of nodes in self
+    pub fn node_count(&self) -> usize {
+        self.edges.len() * 2
+    }
+
+    /// Return the number of edges in self
+    pub fn edge_count(&self) -> usize {
+        self.edges.len()
+    }
+
+    /// Get the edge at the given index
+    fn edge_at(&self, index: usize) -> Option<(u64, u64)> {
+        if index > self.edges.len() {
+            return None
+        }
+
+        Some(self.edges[index])
+    }
+
+    /// Solve for a cycle with the given number of edges.
     pub fn solve(&self, cycle_len: usize) -> Option<Vec<u64>> {
         None
+    }
+
+    /// Verify a cycle and check if it is a cycle on self.
+    pub fn verify(&self, cycle_len: usize, edges: &[usize]) -> bool {
+        false
     }
 }
