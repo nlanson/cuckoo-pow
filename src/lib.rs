@@ -13,4 +13,4 @@
 /// algorithm.
 
 mod sip;
-pub mod cuckoo;
+pub mod graph;
