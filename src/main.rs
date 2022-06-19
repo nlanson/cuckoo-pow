@@ -5,5 +5,5 @@ fn main() {
     let graph = Graph::from(edges);
     let cycle = [0, 1, 2, 3, 4, 5];
 
-    assert!(graph.verify(6, &cycle));
+    println!("{}", graph.verify(6, &cycle))
 }

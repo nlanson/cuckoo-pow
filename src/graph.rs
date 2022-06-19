@@ -7,7 +7,10 @@
 /// logic of the cuckoo cycle PoW algorithm. 
 
 use crate::sip::SipHash;
-use std::collections::HashSet;
+use std::collections::{
+    HashSet,
+    HashMap
+};
 
 /// Graph structure
 /// 
@@ -85,52 +88,48 @@ impl Graph {
 
     /// Verify a cycle and check if it is a cycle on self.
     /// TODO:
-    ///     - Remove edges that have been used so cycles that repeat an edge
-    ///       cannot be verified.
     ///     - Add and return a enum for returning verification results. This
     ///       can help identify the reason why verification fails.
-    ///     - Cycles cannot repeat any nodes. Need to keep track of visited nodes
-    ///       on both sides of the graph to detect any repeated vertices.
     pub fn verify(&self, cycle_len: usize, edges: &[usize]) -> bool { 
-        // Initialise node tracking sets.
-        let mut u = Vec::new();
-        let mut v = Vec::new();
+        // Initialise node and edge tracking sets.
+        let mut u: HashMap<u64, usize> = HashMap::new();
+        let mut v: HashMap<u64, usize> = HashMap::new();
         let mut edgeset = HashSet::new();
 
+        // Process each edge in the cycle...
         for index in edges {
-            // Check if the working edge is a duplicate.
-            if edgeset.contains(index) {
-                return false
-            } else {
+            // Check if the working edge has been used before.
+            if !edgeset.contains(index) {
                 edgeset.insert(index);
+            } else {
+                return false
             }
             
-            // Extract the edge from the edge set using the index.
-            let (a, b) = match self.edge_at(*index) {
-                Some(edge) => edge,
-                None       => return false
-            };
+            // Check if the edge exists in the graph, and if it does,
+            // keep a track of the vertices that the edge incidents on.
+            if let Some((a, b)) = self.edge_at(*index) {
+                if !u.contains_key(&a) {
+                    u.insert(a, 1);
+                } else {
+                    *u.get_mut(&a).expect("Value not found") += 1;
+                }
 
-            
-            // Insert and track visited edges, removing them if it is already visited.
-            if u.contains(&a) {
-                let index = u.iter().position(|x| *x == a).expect("Node not found");
-                u.remove(index);
+                if !v.contains_key(&b) {
+                    v.insert(b, 1);
+                } else {
+                    *v.get_mut(&b).expect("Value not found") += 1;
+                }
             } else {
-                u.push(a);
-            }
-
-            if v.contains(&b) {
-                let index = v.iter().position(|x| *x == b).expect("Node not found");
-                v.remove(index);
-            } else {
-                v.push(b);
+                return false
             }
         }
 
-        // Once all edges are processed, each vertice should have been visited twice,
-        // meaning that the tracking vecs should be empty.
-        u.len() == 0 && v.len() == 0 && edges.len() == cycle_len
+        // If any of the vertices have been visited more than once in the cycle, then return false.
+        if u.iter().any(|(_, i)| *i != 2) || v.iter().any(|(_, i)| *i != 2) {
+            return false
+        }
+        
+        edges.len() == cycle_len
     }
 }
 
