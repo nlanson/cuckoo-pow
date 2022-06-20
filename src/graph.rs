@@ -51,13 +51,18 @@ impl Graph {
             i += 1;
         }
 
-        // Not sure if this series of right shifts is necessary apart from
-        // saving memory...
-        let mut i = 0;
-        while i < edges.len() {
-            edges[i] = (edges[i].0 >> 1, edges[i].1 >> 1);
-            i += 1;
-        }
+        // From the cuckoo cycle mathspec:
+        //      > From G_K we obtain the graph G'_K by identifying nodes that differ only in the last bit:
+        //      >     for 0 <= i < N, E'_i = (V_i_0 >> 1, V_i_1 >> 1)
+        //
+        // This is implemented in the code commented out below, but not sure if this is doing the right
+        // thing. It certain helps save memory but it seems to be screwing with the edges and adjacency.
+        //
+        // let mut i = 0;
+        // while i < edges.len() {
+        //     edges[i] = (edges[i].0 >> 1, edges[i].1 >> 1);
+        //     i += 1;
+        // }
 
 
         Self { edges }
@@ -94,42 +99,48 @@ impl Graph {
         // Run a few rounds of edge trimming to remove unecessary edges
         let mut adjmatrix = self.adjacency_matrix();
         Self::edge_trim(&mut adjmatrix);
-        Self::edge_trim(&mut adjmatrix);
-        Self::edge_trim(&mut adjmatrix);
 
-        Self::graph_mine(cycle_len, &mut adjmatrix)
+        Self::graph_mine(&mut adjmatrix, cycle_len)
     } 
 
     /// Given a adjacency matrix, trim edges that cannot be part of a cycle.
+    /// This is done by removing edges that incident on nodes with a degree < 2.
+    /// Running edge trimming a few times can drastically reduce the time it takes
+    /// to solve for a cycle in the graph.
     pub fn edge_trim(adjmatrix: &mut AdjacencyMatrix) {
         let (u, v) = adjmatrix;
+        let mut to_remove = Vec::new();
 
-        // For each node in set U, if it has less than 2 neighbours,
-        // remove itself from as a neighbour of the nodes it is a neighbour
-        // to in the other set.
         for (node, neighbours) in u.iter_mut() {
             if neighbours.len() < 2 {
                 for neighbour in neighbours.iter() {
-                    if let Some(set) = v.get_mut(neighbour) {
-                        set.remove(node);
-                    } 
+                    if let Some(entry) = v.get_mut(neighbour) {
+                        entry.remove(node);
+                    }
                 }
+
+                to_remove.push(*node);
             }
         }
-        u.retain(|_, neighbours| neighbours.len() >= 2);
+
+        u.retain(|n, _| !to_remove.contains(&n));
+        to_remove.clear();
 
 
-        // Do the same for nodes in set V
         for (node, neighbours) in v.iter_mut() {
             if neighbours.len() < 2 {
                 for neighbour in neighbours.iter() {
-                    if let Some(set) = u.get_mut(neighbour) {
-                        set.remove(node);
-                    } 
+                    if let Some(entry) = u.get_mut(neighbour) {
+                        entry.remove(node);
+                    }
                 }
+
+                to_remove.push(*node);
             }
         }
-        v.retain(|_, neighbours| neighbours.len() >= 2);
+
+        u.retain(|_, l| l.len() > 0);
+        v.retain(|n, l| !to_remove.contains(&n) && l.len() > 0);
     }
 
     /// Graph mining technique to solve for a cycle on the graph.
@@ -142,7 +153,7 @@ impl Graph {
     ///
     /// This method uses 256 bits per edge (an edge is 128 bits but they
     /// are replicated in both directions in the adjacency matrix).
-    fn graph_mine(cycle_len: usize, adjmatrix: &mut AdjacencyMatrix) -> Option<Vec<usize>> {
+    fn graph_mine(adjmatrix: &mut AdjacencyMatrix, cycle_len: usize) -> Option<Vec<usize>> {
         let (u, v) = adjmatrix;
 
         // From here, we can select an arbitrary node in either the u set or
