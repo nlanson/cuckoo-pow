@@ -33,14 +33,14 @@ pub struct Graph {
 }
 
 impl Graph {
-    /// Construct a new graph
+    /// Construct a new graph with n edges and n+n nodes.
     pub fn new(key: [u64; 4], n: u64) -> Self {
         let mut edges = Vec::with_capacity(n as usize);
         let hasher = SipHash::new(key);
 
         // Construct the edges of the graph G_K
         let mut i: u64 = 0;
-        while i < n{
+        while i < n {
             let u: u64 = hasher.hash(2*i)   % n;
             let v: u64 = hasher.hash(2*i+1) % n;
             edges.push((u, v));
@@ -79,14 +79,84 @@ impl Graph {
         Some(self.edges[index])
     }
 
+    // Given an edge, return the index of the edge if it exists.
+    fn index_of(&self, edge: &(u64, u64)) -> Option<usize> {
+        self.edges.iter().position(|x| x == edge)
+    }
+
     /// Solve for a cycle with the given number of edges.
     /// The result of this function is either a vector of edge indicies
     /// or nothing in the case that no cycle exists on the graph.
     pub fn solve(&self, cycle_len: usize) -> Option<Vec<usize>> {
+        // TODO: Implement and run a few rounds of edge trimming before
+        // going into the cycle solving stage.
+        
+        self.graph_mine(cycle_len)
+    } 
+
+    /// Graph mining technique to solve for a cycle on the graph.
+    /// This solving method uses brute force to traverse every path
+    /// that is at most the specified solution length and checks 
+    /// if the start and end of the path are equal, in which case the
+    /// path is a cycle.
+    /// Along the way, visited nodes and used edges are kept track of
+    /// so that edges and nodes are not repeated.
+    ///
+    /// This method uses 256 bits per edge (an edge is 128 bits but they
+    /// are replicated in both directions in the adjacency matrix).
+    fn graph_mine(&self, cycle_len: usize) -> Option<Vec<usize>> {
+        // Build an adjacency matrix from the edges
+        let (mut u, mut v) = self.adjacency_matrix();
+
+        // From here, we can select an arbitrary node in either the u set or
+        // the v set which has 2 or more edges that incident on it. From there,
+        // we iterate over each edge and get to the next node, and so and and so
+        // forth, until we either get stuck at a node without any usable edges or
+        // the path we have taken is the length of the target and we check if the 
+        // path is a cycle (start == end).
+        //
+        // While traversing, we keep track of nodes we have visited and edges we have
+        // used so the path does not repeat edges or nodes.
+        
+        // placeholder...
         None
     }
 
+    // Create an adjacency matrix representation of the graph.
+    // The matrix is made of two HashMaps, each holding adjacency values of nodes in either
+    // partition of the node set.
+    pub fn adjacency_matrix(&self) -> (HashMap<u64, HashSet<u64>>, HashMap<u64, HashSet<u64>>) {
+        // Build an adjacency matrix from the edges
+        let mut u: HashMap<u64, HashSet<u64>> = HashMap::new();
+        let mut v: HashMap<u64, HashSet<u64>> = HashMap::new();
+
+        for (a, b) in &self.edges {
+            if u.contains_key(a) {
+                u.get_mut(a).expect("Node not found").insert(*b);
+            } else {
+                let mut set = HashSet::new();
+                set.insert(*b);
+                u.insert(*a, set);
+            }
+            
+            if v.contains_key(b) {
+                v.get_mut(b).expect("Node not found").insert(*a);
+            } else {
+                let mut set = HashSet::new();
+                set.insert(*a);
+                v.insert(*b, set);
+            }
+        }
+
+        (u, v)
+    }
+
+
     /// Verify a cycle and check if it is a cycle on self.
+    /// This is done by storing each visited node in a list, 
+    /// and making sure the edges of the provided cycle enter
+    /// and leave the each node that is part of the cycle.
+    /// 
     /// TODO:
     ///     - Add and return a enum for returning verification results. This
     ///       can help identify the reason why verification fails.
