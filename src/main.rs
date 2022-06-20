@@ -10,11 +10,16 @@ fn main() {
 
 
     // Print adjacency matrix of a graph
-    let graph = Graph::new([0, 5, 2, 9], 8);
-    let (u, v) = graph.adjacency_matrix();
+    let graph = Graph::new([0, 5, 2, 9], 16);
+    let mut adjmatrix = graph.adjacency_matrix();
     println!("{:?}", graph);
     println!("\n");
-    println!("{:?}", u);
+    println!("{:?}", adjmatrix.0);
     println!("\n");
-    println!("{:?}", v);
+    println!("{:?}", adjmatrix.1);
+    println!("\n");
+    Graph::edge_trim(&mut adjmatrix);
+    println!("{:?}", adjmatrix.0);
+    println!("\n");
+    println!("{:?}", adjmatrix.1);
 }

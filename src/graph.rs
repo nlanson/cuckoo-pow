@@ -12,6 +12,8 @@ use std::collections::{
     HashMap
 };
 
+type AdjacencyMatrix = (HashMap<u64, HashSet<u64>>, HashMap<u64, HashSet<u64>>);
+
 /// Graph structure
 /// 
 /// The graph for cuckoo cycle has N edges and N+N nodes.
@@ -33,6 +35,7 @@ pub struct Graph {
 }
 
 impl Graph {
+    
     /// Construct a new graph with n edges and n+n nodes.
     pub fn new(key: [u64; 4], n: u64) -> Self {
         let mut edges = Vec::with_capacity(n as usize);
@@ -88,11 +91,46 @@ impl Graph {
     /// The result of this function is either a vector of edge indicies
     /// or nothing in the case that no cycle exists on the graph.
     pub fn solve(&self, cycle_len: usize) -> Option<Vec<usize>> {
-        // TODO: Implement and run a few rounds of edge trimming before
-        // going into the cycle solving stage.
-        
-        self.graph_mine(cycle_len)
+        // Run a few rounds of edge trimming to remove unecessary edges
+        let mut adjmatrix = self.adjacency_matrix();
+        Self::edge_trim(&mut adjmatrix);
+        Self::edge_trim(&mut adjmatrix);
+        Self::edge_trim(&mut adjmatrix);
+
+        Self::graph_mine(cycle_len, &mut adjmatrix)
     } 
+
+    /// Given a adjacency matrix, trim edges that cannot be part of a cycle.
+    pub fn edge_trim(adjmatrix: &mut AdjacencyMatrix) {
+        let (u, v) = adjmatrix;
+
+        // For each node in set U, if it has less than 2 neighbours,
+        // remove itself from as a neighbour of the nodes it is a neighbour
+        // to in the other set.
+        for (node, neighbours) in u.iter_mut() {
+            if neighbours.len() < 2 {
+                for neighbour in neighbours.iter() {
+                    if let Some(set) = v.get_mut(neighbour) {
+                        set.remove(node);
+                    } 
+                }
+            }
+        }
+        u.retain(|_, neighbours| neighbours.len() >= 2);
+
+
+        // Do the same for nodes in set V
+        for (node, neighbours) in v.iter_mut() {
+            if neighbours.len() < 2 {
+                for neighbour in neighbours.iter() {
+                    if let Some(set) = u.get_mut(neighbour) {
+                        set.remove(node);
+                    } 
+                }
+            }
+        }
+        v.retain(|_, neighbours| neighbours.len() >= 2);
+    }
 
     /// Graph mining technique to solve for a cycle on the graph.
     /// This solving method uses brute force to traverse every path
@@ -104,9 +142,8 @@ impl Graph {
     ///
     /// This method uses 256 bits per edge (an edge is 128 bits but they
     /// are replicated in both directions in the adjacency matrix).
-    fn graph_mine(&self, cycle_len: usize) -> Option<Vec<usize>> {
-        // Build an adjacency matrix from the edges
-        let (mut u, mut v) = self.adjacency_matrix();
+    fn graph_mine(cycle_len: usize, adjmatrix: &mut AdjacencyMatrix) -> Option<Vec<usize>> {
+        let (u, v) = adjmatrix;
 
         // From here, we can select an arbitrary node in either the u set or
         // the v set which has 2 or more edges that incident on it. From there,
@@ -125,7 +162,7 @@ impl Graph {
     // Create an adjacency matrix representation of the graph.
     // The matrix is made of two HashMaps, each holding adjacency values of nodes in either
     // partition of the node set.
-    pub fn adjacency_matrix(&self) -> (HashMap<u64, HashSet<u64>>, HashMap<u64, HashSet<u64>>) {
+    pub fn adjacency_matrix(&self) -> AdjacencyMatrix {
         // Build an adjacency matrix from the edges
         let mut u: HashMap<u64, HashSet<u64>> = HashMap::new();
         let mut v: HashMap<u64, HashSet<u64>> = HashMap::new();
