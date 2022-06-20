@@ -109,7 +109,6 @@ impl Graph {
     /// to solve for a cycle in the graph.
     pub fn edge_trim(adjmatrix: &mut AdjacencyMatrix) {
         let (u, v) = adjmatrix;
-        let mut to_remove = Vec::new();
 
         for (node, neighbours) in u.iter_mut() {
             if neighbours.len() < 2 {
@@ -118,13 +117,10 @@ impl Graph {
                         entry.remove(node);
                     }
                 }
-
-                to_remove.push(*node);
             }
         }
 
-        u.retain(|n, _| !to_remove.contains(&n));
-        to_remove.clear();
+        u.retain(|_, v| v.len() >= 2);
 
 
         for (node, neighbours) in v.iter_mut() {
@@ -134,13 +130,11 @@ impl Graph {
                         entry.remove(node);
                     }
                 }
-
-                to_remove.push(*node);
             }
         }
-
-        u.retain(|_, l| l.len() > 0);
-        v.retain(|n, l| !to_remove.contains(&n) && l.len() > 0);
+        
+        v.retain(|_, v| v.len() >= 2);
+        u.retain(|_, v| v.len() >= 1);
     }
 
     /// Graph mining technique to solve for a cycle on the graph.
