@@ -11,8 +11,7 @@ use std::collections::{
     HashSet,
     HashMap
 };
-
-type AdjacencyMatrix = (HashMap<u64, HashSet<u64>>, HashMap<u64, HashSet<u64>>);
+use std::cell::RefCell;
 
 /// Graph structure
 /// 
@@ -31,8 +30,17 @@ type AdjacencyMatrix = (HashMap<u64, HashSet<u64>>, HashMap<u64, HashSet<u64>>);
 ///             on.
 #[derive(Debug)]
 pub struct Graph {
-    edges: Vec<(u64, u64)>
+    edges: Vec<Edge>,
 }
+
+#[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
+pub enum Node {
+    U(u64),
+    V(u64)
+}
+
+type Edge = (Node, Node);
+type AdjacencyMatrix = HashMap<Node, RefCell<HashSet<Node>>>;
 
 impl Graph {
     
@@ -46,7 +54,7 @@ impl Graph {
         while i < n {
             let u: u64 = hasher.hash(2*i)   % n;
             let v: u64 = hasher.hash(2*i+1) % n;
-            edges.push((u, v));
+            edges.push((Node::U(u), Node::V(v)));
             
             i += 1;
         }
@@ -79,7 +87,7 @@ impl Graph {
     }
 
     /// Get the edge at the given index
-    fn edge_at(&self, index: usize) -> Option<(u64, u64)> {
+    fn edge_at(&self, index: usize) -> Option<Edge> {
         if index > self.edges.len() {
             return None
         }
@@ -88,7 +96,7 @@ impl Graph {
     }
 
     // Given an edge, return the index of the edge if it exists.
-    fn index_of(&self, edge: &(u64, u64)) -> Option<usize> {
+    fn index_of(&self, edge: &Edge) -> Option<usize> {
         self.edges.iter().position(|x| x == edge)
     }
 
@@ -98,7 +106,7 @@ impl Graph {
     pub fn solve(&self, cycle_len: usize) -> Option<Vec<usize>> {
         // Run a few rounds of edge trimming to remove unecessary edges
         let mut adjmatrix = self.adjacency_matrix();
-        Self::edge_trim(&mut adjmatrix);
+        Self::edge_trim(&mut adjmatrix, 3);
 
         Self::graph_mine(&mut adjmatrix, cycle_len)
     } 
@@ -107,34 +115,32 @@ impl Graph {
     /// This is done by removing edges that incident on nodes with a degree < 2.
     /// Running edge trimming a few times can drastically reduce the time it takes
     /// to solve for a cycle in the graph.
-    pub fn edge_trim(adjmatrix: &mut AdjacencyMatrix) {
-        let (u, v) = adjmatrix;
-
-        for (node, neighbours) in u.iter_mut() {
-            if neighbours.len() < 2 {
-                for neighbour in neighbours.iter() {
-                    if let Some(entry) = v.get_mut(neighbour) {
-                        entry.remove(node);
-                    }
+    pub fn edge_trim(adjmatrix: &mut AdjacencyMatrix, count: usize) {        
+        for _ in 0..count {
+            for node in adjmatrix.keys() {
+                let mut neighbours = adjmatrix
+                                    .get(node)
+                                    .expect("Node not found")
+                                    .borrow_mut();
+                
+                
+                if neighbours.len() >= 2 {
+                    continue
                 }
-            }
-        }
-
-        u.retain(|_, v| v.len() >= 2);
-
-
-        for (node, neighbours) in v.iter_mut() {
-            if neighbours.len() < 2 {
+                
                 for neighbour in neighbours.iter() {
-                    if let Some(entry) = u.get_mut(neighbour) {
-                        entry.remove(node);
-                    }
+                    adjmatrix
+                        .get(neighbour)
+                        .expect("Node not found")
+                        .borrow_mut()
+                        .remove(node);
                 }
+
+                neighbours.clear();
             }
         }
         
-        v.retain(|_, v| v.len() >= 2);
-        u.retain(|_, v| v.len() >= 1);
+        adjmatrix.retain(|_, v| v.borrow().len() > 0);
     }
 
     /// Graph mining technique to solve for a cycle on the graph.
@@ -148,8 +154,6 @@ impl Graph {
     /// This method uses 256 bits per edge (an edge is 128 bits but they
     /// are replicated in both directions in the adjacency matrix).
     fn graph_mine(adjmatrix: &mut AdjacencyMatrix, cycle_len: usize) -> Option<Vec<usize>> {
-        let (u, v) = adjmatrix;
-
         // From here, we can select an arbitrary node in either the u set or
         // the v set which has 2 or more edges that incident on it. From there,
         // we iterate over each edge and get to the next node, and so and and so
@@ -168,29 +172,35 @@ impl Graph {
     // The matrix is made of two HashMaps, each holding adjacency values of nodes in either
     // partition of the node set.
     pub fn adjacency_matrix(&self) -> AdjacencyMatrix {
-        // Build an adjacency matrix from the edges
-        let mut u: HashMap<u64, HashSet<u64>> = HashMap::new();
-        let mut v: HashMap<u64, HashSet<u64>> = HashMap::new();
+        let mut adjmatrix: AdjacencyMatrix = HashMap::new();
 
         for (a, b) in &self.edges {
-            if u.contains_key(a) {
-                u.get_mut(a).expect("Node not found").insert(*b);
-            } else {
+            if !adjmatrix.contains_key(&a) {
                 let mut set = HashSet::new();
                 set.insert(*b);
-                u.insert(*a, set);
-            }
-            
-            if v.contains_key(b) {
-                v.get_mut(b).expect("Node not found").insert(*a);
+                adjmatrix.insert(*a, RefCell::new(set));
             } else {
+                adjmatrix
+                    .get_mut(a)
+                    .expect("Node not found")
+                    .borrow_mut()
+                    .insert(*b);
+            }
+
+            if !adjmatrix.contains_key(&b) {
                 let mut set = HashSet::new();
                 set.insert(*a);
-                v.insert(*b, set);
+                adjmatrix.insert(*b, RefCell::new(set));
+            } else {
+                adjmatrix
+                    .get_mut(b)
+                    .expect("Node not found")
+                    .borrow_mut()
+                    .insert(*a);
             }
         }
 
-        (u, v)
+        adjmatrix
     }
 
 
@@ -204,8 +214,8 @@ impl Graph {
     ///       can help identify the reason why verification fails.
     pub fn verify(&self, cycle_len: usize, edges: &[usize]) -> bool { 
         // Initialise node and edge tracking sets.
-        let mut u: HashMap<u64, usize> = HashMap::new();
-        let mut v: HashMap<u64, usize> = HashMap::new();
+        let mut u: HashMap<Node, usize> = HashMap::new();
+        let mut v: HashMap<Node, usize> = HashMap::new();
         let mut edgeset = HashSet::new();
 
         // Process each edge in the cycle...
@@ -247,6 +257,13 @@ impl Graph {
 
 impl From<Vec<(u64, u64)>> for Graph {
     fn from(edges: Vec<(u64, u64)>) -> Self {
-        Self { edges }
+        
+        
+        Self { 
+            edges: edges
+                    .iter()
+                    .map(|(a, b)| (Node::U(*a), Node::V(*b)))
+                    .collect() 
+        }
     }
 }
