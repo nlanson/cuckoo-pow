@@ -119,10 +119,9 @@ impl Graph {
         for _ in 0..count {
             for node in adjmatrix.keys() {
                 let mut neighbours = adjmatrix
-                                    .get(node)
-                                    .expect("Node not found")
-                                    .borrow_mut();
-                
+                                        .get(node)
+                                        .expect("Node not found")
+                                        .borrow_mut();
                 
                 if neighbours.len() >= 2 {
                     continue
@@ -213,45 +212,44 @@ impl Graph {
     ///     - Add and return a enum for returning verification results. This
     ///       can help identify the reason why verification fails.
     pub fn verify(&self, cycle_len: usize, edges: &[usize]) -> bool { 
-        // Initialise node and edge tracking sets.
-        let mut u: HashMap<Node, usize> = HashMap::new();
-        let mut v: HashMap<Node, usize> = HashMap::new();
-        let mut edgeset = HashSet::new();
-
-        // Process each edge in the cycle...
-        for index in edges {
-            // Check if the working edge has been used before.
-            if !edgeset.contains(index) {
-                edgeset.insert(index);
-            } else {
-                return false
-            }
-            
-            // Check if the edge exists in the graph, and if it does,
-            // keep a track of the vertices that the edge incidents on.
-            if let Some((a, b)) = self.edge_at(*index) {
-                if !u.contains_key(&a) {
-                    u.insert(a, 1);
-                } else {
-                    *u.get_mut(&a).expect("Value not found") += 1;
-                }
-
-                if !v.contains_key(&b) {
-                    v.insert(b, 1);
-                } else {
-                    *v.get_mut(&b).expect("Value not found") += 1;
-                }
-            } else {
-                return false
-            }
-        }
-
-        // If any of the vertices have been visited more than once in the cycle, then return false.
-        if u.iter().any(|(_, i)| *i != 2) || v.iter().any(|(_, i)| *i != 2) {
+        // Early exit upon cycle length mismatch
+        if edges.len() != cycle_len {
             return false
         }
         
-        edges.len() == cycle_len
+        // Initialise node and edge tracker
+        let mut counter: HashMap<Node, usize> = HashMap::new();
+        let mut edgeset: HashSet<usize> = HashSet::new();
+        
+        for index in edges {
+            // If edge is used before, fail verification,
+            if edgeset.contains(index) {
+                return false;
+            }
+
+            // Track the edge as used
+            edgeset.insert(*index);
+
+            // Track how the degree of each node in the given cycle.
+            if let Some((u, v)) = self.edge_at(*index) {
+                if counter.contains_key(&u) {
+                    *counter.get_mut(&u).expect("Node not found") += 1;
+                } else {
+                    counter.insert(u, 1);
+                }
+
+                if counter.contains_key(&v) {
+                    *counter.get_mut(&v).expect("Node not found") += 1;
+                } else {
+                    counter.insert(v, 1);
+                }
+            } else {
+                return false
+            }  
+        }
+
+        // The cycle is verified if every involved vertice is invidented on twice.
+        !counter.iter().any(|(_, i)| *i != 2)
     }
 }
 
