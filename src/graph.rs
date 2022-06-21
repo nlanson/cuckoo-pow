@@ -209,6 +209,10 @@ impl Graph {
     /// and leave the each node that is part of the cycle.
     /// 
     /// TODO:
+    ///     - Verify that the given cycle is not multiple disjoint cycles.
+    ///       This can be done by verifying that by following the cycle from
+    ///       an arbitrary starting point, we use all the edges in the cycle.
+    /// 
     ///     - Add and return a enum for returning verification results. This
     ///       can help identify the reason why verification fails.
     pub fn verify(&self, cycle_len: usize, edges: &[usize]) -> bool { 
@@ -263,5 +267,26 @@ impl From<Vec<(u64, u64)>> for Graph {
                     .map(|(a, b)| (Node::U(*a), Node::V(*b)))
                     .collect() 
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn verify_cycle() {
+        let edges = vec![(0, 0), (1, 0), (1, 2), (3, 2), (3, 3), (0, 3)];
+        let graph = Graph::from(edges);
+        let cycle = [0, 1, 2, 3, 4, 5];
+        assert!(graph.verify(6, &cycle));
+    }
+
+    #[test]
+    fn fail_verify_cycle() {
+        let edges = vec![(0, 0), (0, 1), (1, 0), (1, 1), (6, 6), (6, 7), (7, 6), (7, 7)];
+        let graph = Graph::from(edges);
+        let cycle = [0, 1, 2, 3, 4, 5, 6, 7];
+        assert!(!graph.verify(8, &cycle));
     }
 }
