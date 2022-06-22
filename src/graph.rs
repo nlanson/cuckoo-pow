@@ -7,11 +7,12 @@
 /// logic of the cuckoo cycle PoW algorithm. 
 
 use crate::sip::SipHash;
+use std::cell::RefCell;
 use std::collections::{
     HashSet,
     HashMap
 };
-use std::cell::RefCell;
+
 
 /// Graph structure
 /// 
@@ -24,10 +25,8 @@ use std::cell::RefCell;
 /// the siphash-2-4 hash function.
 /// 
 /// Struct Fields:
-///     edges - The edges of the graph which
-///             connect nodes together. Each edge
-///             consists of the nodes the it incidents
-///             on.
+///     edges - Edges are stored as a list of Edges instead of
+///             of an adjacency matrix to preserve the indexing.
 #[derive(Debug)]
 pub struct Graph {
     edges: Vec<Edge>,
@@ -209,25 +208,30 @@ impl Graph {
     /// and leave the each node that is part of the cycle.
     /// 
     /// TODO:
-    ///     - Verify that the given cycle is not multiple disjoint cycles.
-    ///       This can be done by verifying that by following the cycle from
-    ///       an arbitrary starting point, we use all the edges in the cycle.
-    /// 
     ///     - Add and return a enum for returning verification results. This
     ///       can help identify the reason why verification fails.
     pub fn verify(&self, cycle_len: usize, edges: &[usize]) -> bool { 
-        // Early exit upon cycle length mismatch
-        if edges.len() != cycle_len {
+        // Early fail conditions
+        //  - Provided edges or cycle len is odd.
+        //  - Edge len does not equal cycle len.
+        //  - Cycle len is zero.
+        if edges.len()%2 == 1 || cycle_len%2 == 1 || edges.len() != cycle_len || cycle_len == 0 {
             return false
         }
         
         // Initialise node and edge tracker
         let mut counter: HashMap<Node, usize> = HashMap::new();
         let mut edgeset: HashSet<usize> = HashSet::new();
+        let mut prev = edges[0];
         
         for index in edges {
             // If edge is used before, fail verification,
             if edgeset.contains(index) {
+                return false;
+            }
+
+            // If edge indexes are not sorted, fail verification.
+            if *index < prev {
                 return false;
             }
 
@@ -249,24 +253,70 @@ impl Graph {
                 }
             } else {
                 return false
-            }  
+            }
+
+            prev = *index;
         }
 
-        // The cycle is verified if every involved vertice is invidented on twice.
-        !counter.iter().any(|(_, i)| *i != 2)
+        // Fail if every involved vertice is not incidented on twice.
+        if counter.iter().any(|(_, i)| *i != 2) {
+            return false
+        }
+
+        // Follow cycle
+        let cmatrix = Graph::from(
+            edges.iter().map(|x| self.edge_at(*x).expect("Edge not found")).collect::<Vec<Edge>>()
+        ).adjacency_matrix();
+        let start = cmatrix.keys().next().expect("Node missing");
+        let mut pos = *start;
+        let mut n = 0;
+
+        loop {
+            let mut adjs = cmatrix.get(&pos).expect("Node missing").borrow_mut();
+            
+            // End of cycle
+            if adjs.len() == 0 && pos == *start {
+                return n == cycle_len;
+            }
+
+            match adjs.iter().next() {
+                Some(node) => {
+                    cmatrix.get(node).expect("Node missing").borrow_mut().remove(&pos);
+                    pos = node.clone();
+                },
+                _ => return false // Dead end (should not occur...)
+            }
+
+            adjs.remove(&pos);
+            n += 1;
+        }
     }
 }
 
 impl From<Vec<(u64, u64)>> for Graph {
     fn from(edges: Vec<(u64, u64)>) -> Self {
-        
-        
         Self { 
             edges: edges
                     .iter()
                     .map(|(a, b)| (Node::U(*a), Node::V(*b)))
                     .collect() 
         }
+    }
+}
+
+impl From<Vec<Edge>> for Graph {
+    fn from(edges: Vec<Edge>) -> Self {
+        let mut g = Vec::new();
+        
+        for edge in edges {
+            match edge {
+                (Node::U(_), Node::V(_)) => g.push(edge),
+                (Node::V(v), Node::U(u)) => g.push((Node::U(u), Node::V(v))),
+                _                        => continue
+            }
+        }
+
+        Self { edges: g }
     }
 }
 
