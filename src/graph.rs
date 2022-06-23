@@ -146,11 +146,6 @@ impl Graph {
     /// that is at most the specified solution length and checks 
     /// if the start and end of the path are equal, in which case the
     /// path is a cycle.
-    /// Along the way, visited nodes and used edges are kept track of
-    /// so that edges and nodes are not repeated.
-    ///
-    /// This method uses 256 bits per edge (an edge is 128 bits but they
-    /// are replicated in both directions in the adjacency matrix).
     /// 
     /// TODO: Add graph mining tests.
     fn graph_mine(&self, adjmatrix: &mut AdjacencyMatrix, cycle_len: usize) -> Option<Vec<usize>> {
