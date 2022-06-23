@@ -96,7 +96,7 @@ impl Graph {
 
     // Given an edge, return the index of the edge if it exists.
     fn index_of(&self, edge: &Edge) -> Option<usize> {
-        self.edges.iter().position(|x| x == edge)
+        self.edges.iter().position(|(u, v)| (*u, *v) == *edge || (*v, *u) == *edge)
     }
 
     /// Solve for a cycle with the given number of edges.
@@ -107,7 +107,7 @@ impl Graph {
         let mut adjmatrix = self.adjacency_matrix();
         Self::edge_trim(&mut adjmatrix, 3);
 
-        Self::graph_mine(&mut adjmatrix, cycle_len)
+        self.graph_mine(&mut adjmatrix, cycle_len)
     } 
 
     /// Given a adjacency matrix, trim edges that cannot be part of a cycle.
@@ -151,19 +151,85 @@ impl Graph {
     ///
     /// This method uses 256 bits per edge (an edge is 128 bits but they
     /// are replicated in both directions in the adjacency matrix).
-    fn graph_mine(adjmatrix: &mut AdjacencyMatrix, cycle_len: usize) -> Option<Vec<usize>> {
-        // From here, we can select an arbitrary node in either the u set or
-        // the v set which has 2 or more edges that incident on it. From there,
-        // we iterate over each edge and get to the next node, and so and and so
-        // forth, until we either get stuck at a node without any usable edges or
-        // the path we have taken is the length of the target and we check if the 
-        // path is a cycle (start == end).
-        //
-        // While traversing, we keep track of nodes we have visited and edges we have
-        // used so the path does not repeat edges or nodes.
-        
-        // placeholder...
+    /// 
+    /// TODO: Add graph mining tests.
+    fn graph_mine(&self, adjmatrix: &mut AdjacencyMatrix, cycle_len: usize) -> Option<Vec<usize>> {
+        // For each node, 
+        for node in adjmatrix.keys() {
+            let neighbours = adjmatrix.get(node).expect("Node missing").borrow();
+            
+            // If it has less than 2 neighbours, skip it.
+            if neighbours.len() < 2 {
+                continue
+            }
+            
+            // Otherwise, try find a cycle using depth first search.
+            match self.dfs(adjmatrix, node, Vec::new(), cycle_len) {
+                None => continue,
+                Some(x) => return self.edges_to_indexes(&x)
+            }
+        }
+
         None
+    }
+
+    // Find a cycle using depth first search.
+    // Modifying the adjacency matrix by removing used edges can make the algorithm more efficient.
+    fn dfs(&self, adjmatrix: &AdjacencyMatrix, start: &Node, path: Vec<Edge>, limit: usize)-> Option<Vec<Edge>> {        
+        // Base case where the length limit has been reached. Return the path if it is a cycle.
+        if limit == 0 {
+            // If the path is trivial, return None
+            if path.len() == 0 {
+                return None
+            }
+            
+            let first = path.first().expect("Path is empty");
+            let last = path.last().expect("Path is empty");
+            let indexes = self.edges_to_indexes(&path)?;
+
+            // If the path starts and ends on the same node and is a verified cycle, return it.
+            if first.0 == last.1 && self.verify(path.len(), &indexes[..]) {
+                return Some(path)
+            }
+
+            return None
+        }
+        
+        // Recursive case, iterate each edge on the current node.
+        if let Some(refc) = adjmatrix.get(start) {
+            let neighbours = refc.borrow();
+            let mut paths: Vec<Option<Vec<Edge>>> = Vec::with_capacity(neighbours.len());
+
+            // Find a cycle from the current node...
+            for n in neighbours.iter() {
+                let mut npath = path.clone();
+                npath.push((*start, *n));
+                paths.push(self.dfs(adjmatrix, n, npath, limit-1));
+            }
+
+            // Of all possible paths from the current node, only keep the cycles.
+            paths.retain(|x| x.is_some());
+
+            // If there are any paths remaining, return the first path that was found.
+            if paths.len() > 0 {
+                return paths.into_iter().nth(0).expect("Path missing")
+            }
+
+            return None
+        }
+
+        None
+    }
+
+    // Given a graph (self) and a list of edges, reutrn a list of corresponding edge indexes.
+    fn edges_to_indexes(&self, edges: &Vec<Edge>) -> Option<Vec<usize>> {
+        let mut indexes = Vec::with_capacity(edges.len());
+        for edge in edges {
+            indexes.push(self.index_of(edge)?);
+        }
+
+        indexes.sort();
+        Some(indexes)
     }
 
     // Create an adjacency matrix representation of the graph.
