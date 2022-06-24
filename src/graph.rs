@@ -168,8 +168,8 @@ impl Graph {
         None
     }
 
-    // Find a cycle using depth first search.
-    // Modifying the adjacency matrix by removing used edges can make the algorithm more efficient.
+    /// Find a cycle using depth first search.
+    /// Modifying the adjacency matrix by removing used edges can make the algorithm more efficient.
     fn dfs(&self, adjmatrix: &AdjacencyMatrix, start: &Node, path: Vec<Edge>, limit: usize)-> Option<Vec<Edge>> {        
         // Base case where the length limit has been reached. Return the path if it is a cycle.
         if limit == 0 {
@@ -189,17 +189,21 @@ impl Graph {
 
             return None
         }
-        
+
         // Recursive case, iterate each edge on the current node.
         if let Some(refc) = adjmatrix.get(start) {
             let neighbours = refc.borrow();
             let mut paths: Vec<Option<Vec<Edge>>> = Vec::with_capacity(neighbours.len());
+            let nodes = neighbours.iter().map(|n| *n).collect::<Vec<Node>>();
 
-            // Find a cycle from the current node...
-            for n in neighbours.iter() {
-                let mut npath = path.clone();
-                npath.push((*start, *n));
-                paths.push(self.dfs(adjmatrix, n, npath, limit-1));
+            for n in nodes {
+                let mut nadjmatrix = adjmatrix.clone();
+                let mut path_cont = Vec::from(&path[..]);
+
+                nadjmatrix.get(&n).expect("Node missing").borrow_mut().remove(start);
+
+                path_cont.push((*start, n));
+                paths.push(self.dfs(&mut nadjmatrix, &n, path_cont, limit-1));
             }
 
             // Of all possible paths from the current node, only keep the cycles.
@@ -216,7 +220,7 @@ impl Graph {
         None
     }
 
-    // Given a graph (self) and a list of edges, reutrn a list of corresponding edge indexes.
+    /// Given a graph (self) and a list of edges, reutrn a list of corresponding edge indexes.
     fn edges_to_indexes(&self, edges: &Vec<Edge>) -> Option<Vec<usize>> {
         let mut indexes = Vec::with_capacity(edges.len());
         for edge in edges {
@@ -227,9 +231,10 @@ impl Graph {
         Some(indexes)
     }
 
-    // Create an adjacency matrix representation of the graph.
-    // The matrix is made of two HashMaps, each holding adjacency values of nodes in either
-    // partition of the node set.
+    /// Create an adjacency matrix representation of the graph.
+    /// The matrix is made of two HashMaps, each holding adjacency values of nodes in either
+    /// partition of the node set.
+    ///
     pub fn adjacency_matrix(&self) -> AdjacencyMatrix {
         let mut adjmatrix: AdjacencyMatrix = HashMap::new();
 

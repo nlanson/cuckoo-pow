@@ -5,7 +5,7 @@ fn main() {
     loop {
         println!("Starting graph #{}", i);
         let graph = Graph::new([2*i, i+2, i+1, i], 2048);
-        let c = graph.solve(10);
+        let c = graph.solve(16);
         if c.is_some() {
             println!("Cycle {:?} was found on graph #{}", c.unwrap(), i);
         }
