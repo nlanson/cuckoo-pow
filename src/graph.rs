@@ -105,7 +105,7 @@ impl Graph {
     pub fn solve(&self, cycle_len: usize) -> Option<Vec<usize>> {
         // Run a few rounds of edge trimming to remove unecessary edges
         let mut adjmatrix = self.adjacency_matrix();
-        Self::edge_trim(&mut adjmatrix, 3);
+        Self::edge_trim(&mut adjmatrix, 12);
 
         self.graph_mine(&mut adjmatrix, cycle_len)
     } 
@@ -116,6 +116,10 @@ impl Graph {
     /// to solve for a cycle in the graph.
     pub fn edge_trim(adjmatrix: &mut AdjacencyMatrix, count: usize) {        
         for _ in 0..count {
+            if adjmatrix.is_empty() {
+                break;
+            }
+            
             for node in adjmatrix.keys() {
                 let mut neighbours = adjmatrix
                                         .get(node)
