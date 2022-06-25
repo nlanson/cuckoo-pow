@@ -105,16 +105,16 @@ impl Graph {
     pub fn solve(&self, cycle_len: usize) -> Option<Vec<usize>> {
         // Run a few rounds of edge trimming to remove unecessary edges
         let mut adjmatrix = self.adjacency_matrix();
-        Self::edge_trim(&mut adjmatrix, 12);
+        Self::edge_trim(&mut adjmatrix, 100);
 
-        self.graph_mine(&mut adjmatrix, cycle_len)
+        self.graph_mine(&adjmatrix, cycle_len)
     } 
 
     /// Given a adjacency matrix, trim edges that cannot be part of a cycle.
     /// This is done by removing edges that incident on nodes with a degree < 2.
     /// Running edge trimming a few times can drastically reduce the time it takes
     /// to solve for a cycle in the graph.
-    pub fn edge_trim(adjmatrix: &mut AdjacencyMatrix, count: usize) {        
+    fn edge_trim(adjmatrix: &mut AdjacencyMatrix, count: usize) {        
         for _ in 0..count {
             if adjmatrix.is_empty() {
                 break;
@@ -152,7 +152,7 @@ impl Graph {
     /// path is a cycle.
     /// 
     /// TODO: Add graph mining tests.
-    fn graph_mine(&self, adjmatrix: &mut AdjacencyMatrix, cycle_len: usize) -> Option<Vec<usize>> {
+    fn graph_mine(&self, adjmatrix: &AdjacencyMatrix, cycle_len: usize) -> Option<Vec<usize>> {
         // For each node, 
         for node in adjmatrix.keys() {
             let neighbours = adjmatrix.get(node).expect("Node missing").borrow();
@@ -239,7 +239,7 @@ impl Graph {
     /// The matrix is made of two HashMaps, each holding adjacency values of nodes in either
     /// partition of the node set.
     ///
-    pub fn adjacency_matrix(&self) -> AdjacencyMatrix {
+    fn adjacency_matrix(&self) -> AdjacencyMatrix {
         let mut adjmatrix: AdjacencyMatrix = HashMap::new();
 
         for (a, b) in &self.edges {
