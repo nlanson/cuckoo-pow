@@ -393,13 +393,39 @@ impl From<Vec<Edge>> for Graph {
 #[cfg(test)]
 mod tests {
     use super::*;
+    
+    const TESTKEYS: [[u64; 4]; 3] = [
+        [0xa213c316f3186bbd, 0xcd6f9ccc655e0c4, 0xb0ebd161892c66b0, 0xffb2a9cc88370a0c],
+        [0xb659dd990d2f6edb, 0xbc56bd42921b87be, 0x72e713d00b4577bc, 0x9fda243c9b41e624],
+        [0xe9653889addd9c28, 0x9723561b256a40a6, 0x8a4b6adcae17b60, 0x440126f94a7939f7]
+    ];
+
+    const TESTCYCLES: [[usize; 6]; 3] = [
+        [0, 1, 2, 4, 5, 6],
+        [0, 1, 2, 3, 4, 7],
+        [0, 1, 2, 4, 5, 7]
+    ];
+
+    #[test]
+    fn solve_cycle() {
+        for i in 0..3 {
+            let cycle = Graph::new(TESTKEYS[i], 8).solve(6).unwrap();
+            assert_eq!(cycle, TESTCYCLES[i]);
+        }
+    }
 
     #[test]
     fn verify_cycle() {
+        // Test data verify
+        for i in 0..3 {
+            assert!(Graph::new(TESTKEYS[i], 8).verify(6, &TESTCYCLES[i]))
+        }
+
+        // Custom cycle verify
         let edges = vec![(0, 0), (1, 0), (1, 2), (3, 2), (3, 3), (0, 3)];
         let graph = Graph::from(edges);
         let cycle = [0, 1, 2, 3, 4, 5];
-        assert!(graph.verify(6, &cycle));
+        assert!(graph.verify(6, &cycle))
     }
 
     #[test]
