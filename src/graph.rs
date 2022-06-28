@@ -201,13 +201,13 @@ impl Graph {
             let nodes = neighbours.iter().map(|n| *n).collect::<Vec<Node>>();
 
             for n in nodes {
-                let mut nadjmatrix = adjmatrix.clone();
+                let nadjmatrix = adjmatrix.clone();
                 let mut path_cont = Vec::from(&path[..]);
 
                 nadjmatrix.get(&n).expect("Node missing").borrow_mut().remove(start);
 
                 path_cont.push((*start, n));
-                paths.push(self.dfs(&mut nadjmatrix, &n, path_cont, limit-1));
+                paths.push(self.dfs(&nadjmatrix, &n, path_cont, limit-1));
             }
 
             // Of all possible paths from the current node, only keep the cycles.
