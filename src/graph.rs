@@ -150,8 +150,6 @@ impl Graph {
     /// that is at most the specified solution length and checks 
     /// if the start and end of the path are equal, in which case the
     /// path is a cycle.
-    /// 
-    /// TODO: Add graph mining tests.
     fn graph_mine(&self, adjmatrix: &AdjacencyMatrix, cycle_len: usize) -> Option<Vec<usize>> {
         // For each node, 
         for node in adjmatrix.keys() {
