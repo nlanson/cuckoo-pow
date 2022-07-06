@@ -38,6 +38,19 @@ pub enum Node {
     V(u64)
 }
 
+#[derive(Debug)]
+pub enum Error {
+    InvalidCycleLen(usize),
+    EdgeCountMismatch(usize, usize),
+    Trivial,
+    DuplicateEdge(usize),
+    EdgesNotSorted,
+    EdgeNotFound(usize),
+    NotACycle,
+    DisjointCycles,
+    DeadEnd
+}
+
 type Edge = (Node, Node);
 type AdjacencyMatrix = HashMap<Node, RefCell<HashSet<Node>>>;
 
@@ -185,7 +198,7 @@ impl Graph {
             let indexes = self.edges_to_indexes(&path)?;
 
             // If the path starts and ends on the same node and is a verified cycle, return it.
-            if first.0 == last.1 && self.verify(path.len(), &indexes[..]) {
+            if first.0 == last.1 && self.verify(path.len(), &indexes[..]).is_ok() {
                 return Some(path)
             }
 
@@ -274,18 +287,24 @@ impl Graph {
     /// This is done by storing each visited node in a list, 
     /// and making sure the edges of the provided cycle enter
     /// and leave the each node that is part of the cycle.
-    /// 
-    /// TODO:
-    ///     - Add and return a enum for returning verification results. This
-    ///       can help identify the reason why verification fails.
-    pub fn verify(&self, cycle_len: usize, edges: &[usize]) -> bool { 
-        // Early fail conditions
-        //  - Provided edges or cycle len is odd.
-        //  - Edge len does not equal cycle len.
-        //  - Cycle len is zero.
-        if edges.len()%2 == 1 || cycle_len%2 == 1 || edges.len() != cycle_len || cycle_len == 0 {
-            return false
+    pub fn verify(&self, cycle_len: usize, edges: &[usize]) -> Result<(), Error> { 
+        // Early exit conditions...
+
+        // Edge or expected cycle length is odd.
+        if edges.len()%2 == 1 || cycle_len%2 == 1{
+            return Err(Error::NotACycle)
         }
+
+        // The cycle is trivial.
+        if cycle_len == 0 || edges.len() == 0 {
+            return Err(Error::Trivial)
+        }
+        
+        // The cycle is not of expected length
+        if edges.len() != cycle_len {
+            return Err(Error::EdgeCountMismatch(cycle_len, edges.len()))
+        }
+        
         
         // Initialise node and edge tracker
         let mut counter: HashMap<Node, usize> = HashMap::new();
@@ -295,12 +314,12 @@ impl Graph {
         for index in edges {
             // If edge is used before, fail verification,
             if edgeset.contains(index) {
-                return false;
+                return Err(Error::DuplicateEdge(*index))
             }
 
             // If edge indexes are not sorted, fail verification.
             if *index < prev {
-                return false;
+                return Err(Error::EdgesNotSorted)
             }
 
             // Track the edge as used
@@ -320,7 +339,7 @@ impl Graph {
                     counter.insert(v, 1);
                 }
             } else {
-                return false
+                return Err(Error::EdgeNotFound(*index))
             }
 
             prev = *index;
@@ -328,7 +347,7 @@ impl Graph {
 
         // Fail if every involved vertice is not incidented on twice.
         if counter.iter().any(|(_, i)| *i != 2) {
-            return false
+            return Err(Error::NotACycle)
         }
 
         // Follow cycle
@@ -342,9 +361,19 @@ impl Graph {
         loop {
             let mut adjs = cmatrix.get(&pos).expect("Node missing").borrow_mut();
             
-            // End of cycle
-            if adjs.len() == 0 && pos == *start {
-                return n == cycle_len;
+            // Reached the end of the cycle we were following...
+            if adjs.len() == 0 {
+                // The ending node does not equal the starting node
+                if !(pos == *start) {
+                    return Err(Error::NotACycle)
+                }
+                
+                // Length mismatch.
+                if !(n == cycle_len) {
+                    return Err(Error::DisjointCycles)
+                }
+
+                return Ok(())
             }
 
             match adjs.iter().next() {
@@ -352,7 +381,7 @@ impl Graph {
                     cmatrix.get(node).expect("Node missing").borrow_mut().remove(&pos);
                     pos = node.clone();
                 },
-                _ => return false // Dead end (should not occur...)
+                _ => return Err(Error::DeadEnd) // Should never occur...
             }
 
             adjs.remove(&pos);
@@ -388,6 +417,22 @@ impl From<Vec<Edge>> for Graph {
     }
 }
 
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+        match *self {
+            Error::NotACycle => write!(f, "edge set does not form a cycle"),
+            Error::Trivial => write!(f, "cycle is trvial"),
+            Error::InvalidCycleLen(l) => write!(f, "cycle length {} is invalid", l),
+            Error::EdgeCountMismatch(expected, found) => write!(f, "expected {} edges, got {}", expected, found),
+            Error::DuplicateEdge(e) => write!(f, "edge {} is used more than once", e),
+            Error::EdgesNotSorted => write!(f, "edges must be sorted for valid pow"),
+            Error::EdgeNotFound(e) => write!(f, "edge {} does not exist in the graph", e),
+            Error::DeadEnd => write!(f, "encountered dead end in cycle"),
+            Error::DisjointCycles => write!(f, "edge set forms two or more disjoint cycles"), 
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -416,14 +461,14 @@ mod tests {
     fn verify_cycle() {
         // Test data verify
         for i in 0..3 {
-            assert!(Graph::new(TESTKEYS[i], 8).verify(6, &TESTCYCLES[i]))
+            assert!(Graph::new(TESTKEYS[i], 8).verify(6, &TESTCYCLES[i]).is_ok())
         }
 
         // Custom cycle verify
         let edges = vec![(0, 0), (1, 0), (1, 2), (3, 2), (3, 3), (0, 3)];
         let graph = Graph::from(edges);
         let cycle = [0, 1, 2, 3, 4, 5];
-        assert!(graph.verify(6, &cycle))
+        assert!(graph.verify(6, &cycle).is_ok())
     }
 
     #[test]
@@ -431,6 +476,6 @@ mod tests {
         let edges = vec![(0, 0), (0, 1), (1, 0), (1, 1), (6, 6), (6, 7), (7, 6), (7, 7)];
         let graph = Graph::from(edges);
         let cycle = [0, 1, 2, 3, 4, 5, 6, 7];
-        assert!(!graph.verify(8, &cycle));
+        assert!(graph.verify(8, &cycle).is_err());
     }
 }
